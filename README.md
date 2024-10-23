@@ -1,61 +1,52 @@
 # Module 6 - Mini-Project - E-commerce API
 Author: Elizabeth Yates
 
-## Project Requirements
-To successfully build our e-commerce application and achieve the learning objectives, we need to establish clear project requirements. These requirements outline the key features and functionalities that our application must encompass. Below, you'll find a comprehensive list of project requirements based on our learning objectives.
+## Objective
+- To build out an e-commerce application utilizing Flask-SQLAlchemy to integrate a MySQL database (ecommerce_db) and Postman as the user interface. 
 
-### Customer and CustomerAccount Management 
-Create the CRUD (Create, Read, Update, Delete) endpoints for managing Customers and their associated CustomerAccounts:
+## Tables
+- **Customers**: With the parameters of name, email, phone, the `Customers` table captures the information from each customer of the e-commerce app.  
+- **CustomerAccounts**: With a one-to-one relationship to the `Customers` table, the `CustomerAccounts` table just captures the username and password and validates that they are following specific requirements. 
+- **Products**: With the parameters of name and price, the `Products` table captures the information for each product available on the e-commerce app.
+- **Orders**: With a many-to-many relationship to the `Products` table and a one-to-many relationship to the `Customers` table, the `Orders` table keeps track of the date the order was placed, the customer who placed the order, and the products included on the order, as well as the quantity of said products. 
 
-- **Create Customer**: Implement an endpoint to add a new customer to the database. Ensure that you capture essential customer information, including name, email, and phone number.
-- **Read Customer**: Develop an endpoint to retrieve customer details based on their unique identifier (ID). Provide functionality to query and display customer information.
-- **Update Customer**: Create an endpoint for updating customer details, allowing modifications to the customer's name, email, and phone number.
-- **Delete Customer**: Implement an endpoint to delete a customer from the system based on their ID.
-- **Create CustomerAccount**: Develop an endpoint to create a new customer account. This should include fields for a unique username and a secure password.
-- **Read CustomerAccount**: Implement an endpoint to retrieve customer account details, including the associated customer's information.
-- **Update CustomerAccount**: Create an endpoint for updating customer account information, including the username and password.
-- **Delete CustomerAccount**: Develop an endpoint to delete a customer account.
+## Functionality
 
-### Product Catalog: 
-Create the CRUD (Create, Read, Update, Delete) endpoints for managing Products:
+### Customers 
 
-- **Create Product**: Implement an endpoint to add a new product to the e-commerce database. Capture essential product details, such as the product name and price.
-- **Read Product**: Develop an endpoint to retrieve product details based on the product's unique identifier (ID). Provide functionality to query and display product information.
-- **Update Product**: Create an endpoint for updating product details, allowing modifications to the product name and price.
-- **Delete Product**: Implement an endpoint to delete a product from the system based on its unique ID.
-- **List Products**: Develop an endpoint to list all available products in the e-commerce platform. Ensure that the list provides essential product information.
-- **View and Manage Product Stock Levels (Bonus)**: Create an endpoint that allows to view and manage the stock levels of each product in the catalog. Administrators should be able to see the current stock level and make adjustments as needed.
-- **Restock Products When Low (Bonus)**: Develop an endpoint that monitors product stock levels and triggers restocking when they fall below a specified threshold. Ensure that stock replenishment is efficient and timely.
+- **Create Customer**: Add a new customer to the database, capturing essential customer information, including name, email, and phone number, username, and password.
+- **Read Customer**: Retrieve customer details based on their unique identifier (ID), displaying essential customer information, including name, email, phone number and username (but not password).
+- **Update Customer**: Update customer details, allowing modifications to the customer's name, email, and phone number.
+- **Delete Customer**: Delete a customer and their associated account from the system based on their ID.
+- **Customer by Email**: Retrieve customer details based on their email, displaying name, email, phone number, and username (but not password).
 
-### Order Processing: 
-Develop comprehensive Orders Management functionality to efficiently handle customer orders, ensuring that customers can place, track, and manage their orders seamlessly.
+### CustomerAccounts
 
-- **Place Order**: Create an endpoint for customers to place new orders, specifying the products they wish to purchase and providing essential order details. Each order should capture the order date and the associated customer.
-- **Retrieve Order**: Implement an endpoint that allows customers to retrieve details of a specific order based on its unique identifier (ID). Provide a clear overview of the order, including the order date and associated products.
-- **Track Order**: Develop functionality that enables customers to track the status and progress of their orders. Customers should be able to access information such as order dates and expected delivery dates.
-- **Manage Order History (Bonus)**: Create an endpoint that allows customers to access their order history, listing all previous orders placed. Each order entry should provide comprehensive information, including the order date and associated products.
-- **Cancel Order (Bonus)**: Implement an order cancellation feature, allowing customers to cancel an order if it hasn't been shipped or completed. Ensure that canceled orders are appropriately reflected in the system.
-- **Calculate Order Total Price (Bonus)**: Include an endpoint that calculates the total price of items in a specific order, considering the prices of the products included in the order. This calculation should be specific to each customer and each order, providing accurate pricing information.
+- **Create CustomerAccount**: Create a new customer account for a provided customer, including fields for a unique username and a secure password. If the customer already has an account, it will inform the user. If the customer doesn't exist, it will inform the user. 
+- **Read CustomerAccount**: Retrieve customer account details, including the associated customer's information, using the username.
+- **Update CustomerAccount**: Update customer account information, including the username and password.
+- **Delete CustomerAccount**: Delete a customer account, given the account id.
 
-### Database Integration:
+### Products 
 
-- Utilize Flask-SQLAlchemy to integrate a MySQL database into the application.
-- Design and create the necessary Model to represent customers, orders, products, customer accounts, and any additional features.
-- Establish relationships between tables to model the application's core functionality.
-- Ensure proper database connections and interactions for data storage and retrieval.
+- **Create Product**: Add a new product to the e-commerce database, capturing essential product details, such as the product name and price.
+- **Read Product**: Retrieve product details based on the product's unique identifier (ID), displaying product name and price.
+- **Search Products**: Retrieve product details based on a search function, displaying product name and price.
+- **Update Product**: Update product details, allowing modifications to the product name and price.
+- **Delete Product**: Delete a product from the system based on its unique ID.
+- **List Products**: List all available products in the e-commerce platform. Ensure that the list provides essential product information.
 
-### Data Validation and Error Handling:
+### Orders 
 
-- Implement data validation mechanisms to ensure that user inputs meet specified criteria (e.g., valid email addresses, proper formatting).
-- Use try, except, else, and finally blocks to handle errors gracefully and provide informative error messages to guide users.
+- **Place Order**: Place new order, specifying the products they wish to purchase and providing essential order details. Each order captures the order date, the customer id, and the associated products and quantity of products.
+- **Retrieve Order**: Customers can retrieve details of a specific order based on its unique identifier (ID) with a clear overview of the order, including the order date, customer details, associated products, quantity of products, and the order total.
+- **Manage Order History**: Customers can access their order history by their username, listing all previous orders placed. Each order entry should provide comprehensive information, including the order date, associated products, and quantity of products.
+- **Cancel Order**: Customers can cancel an order.
+- **Add Product to Order**: Customers can add a quantity of a product to an order. 
+- **Remove Product from Order**: Customers can remove all of a product from an order. 
 
-### User Interface (Postman):
 
-- Develop Postman collections that categorize and group API requests according to their functionality. 
-- Separate collections for Customer Management, Product Management, Order Management, and Bonus Features should be created for clarity.
 
-### GitHub Repository:
 
-- Create a GitHub repository for the project and commit code regularly.
-- Maintain a clean and interactive README.md file in the GitHub repository, providing clear instructions on how to run the application and explanations of its features.
-- Include a link to the GitHub repository in the project documentation.
+*This code can be found in this repository:*
+*https://github.com/ecyates/module-6-mini-project-e-commerce-api.git*
