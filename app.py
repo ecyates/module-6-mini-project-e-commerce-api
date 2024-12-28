@@ -1,9 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow,validate
 from marshmallow import fields, ValidationError, validate
 from marshmallow.fields import Nested
 from mysql.connector import IntegrityError
+from flask_cors import CORS
 import re
 
 # ---------------------------------------------------- #
@@ -41,6 +42,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+mysqlconnector://root:{my_password}@localhost/ecommerce_db'
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
+CORS(app)
 
 # ---------------------------------------------------- #
 # DEFINING MODELS
@@ -159,6 +161,15 @@ with app.app_context(): # Providing all the settings/tools/etc. to start the app
 # CUSTOMERS
 # ---------------------------------------------------- #
 
+# OPTIONS Route (For Preflight Request)
+# @app.route('/customers/', methods=["OPTIONS"])
+# def options_customer():
+#     response = jsonify({'message': 'CORS preflight successful'})
+#     response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+#     response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+#     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+#     return response, 200
+
 # Get All Customers
 @app.route("/customers", methods=["GET"])
 def get_customers():
@@ -179,30 +190,59 @@ def get_customers():
         })
     return jsonify(customer_data)
 
+# Get Customer by ID
+@app.route("/customers/<int:id>", methods=["GET"])
+def get_customer_by_id(id):
+    customer = db.session.get(Customer, id) # Retrieve customer data from customer id
+    customer_data = []
+    if customer:
+        if customer.account: # If the account exists, exclude the password
+            account_data = {"username": customer.account.username}
+        else: 
+            account_data = {} # If it doesn't exists, create an empty dictionary
+        customer_data.append({
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "account": account_data
+        })
+    return jsonify(customer_data)
+
 # Add New Customer (and Account)
-@app.route("/customers", methods=["POST"])
+@app.route("/customers/", methods=["POST"])
 def add_customer():
     try:
         # Load the customer data
         customer_data = customer_schema.load(request.json)
-        new_customer = Customer(name = customer_data["name"], email = customer_data["email"], phone = customer_data["phone"])
-        # Add the customer to the session
+        
+        # Check for existing customer by email (or other unique fields)
+        existing_customer = db.session.query(Customer).filter_by(email=customer_data["email"]).first()
+        if existing_customer:
+            return jsonify({"error": "Customer with this email already exists."}), 400
+        
+        new_customer = Customer(name=customer_data["name"], email=customer_data["email"], phone=customer_data["phone"])
         db.session.add(new_customer)
         db.session.commit()
-        # Retrieve customer id and create a new account.
-        customer_id=new_customer.id
-        new_account = CustomerAccount(username=customer_data['account']['username'], password=customer_data['account']['password'], customer_id= customer_id)
+        
+        # Create a new account linked to the customer
+        customer_id = new_customer.id
+        new_account = CustomerAccount(username=customer_data['account']['username'], password=customer_data['account']['password'], customer_id=customer_id)
         db.session.add(new_account)
         db.session.commit()
-        return jsonify({"message": "New customer added successfully"}), 201 # Return success
-    except ValueError as err:
-        return jsonify({"error":str(err)}), 400 # Handle value errors
-    except ValidationError as ve:
-        return jsonify({"error":str(ve)}), 400  # Handle validation errors
-    except IntegrityError:
-        db.session.rollback()  # Rollback the session if there's an error
-        return jsonify({"error": "Integrity error occurred."}), 400 # Handle integrity errors.
+        
+        return jsonify({"message": "New customer added successfully"}), 201
 
+    except KeyError as e:
+        return jsonify({"error": f"Missing key: {str(e)}"}), 400  # Handle missing keys
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Integrity error occurred."}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    
 # Update a Customer
 @app.route("/customers/<int:id>", methods=["PUT"])
 def update_customer(id):
@@ -373,7 +413,7 @@ def delete_account(id):
 # ---------------------------------------------------- #
 
 # Get All Products
-@app.route("/products", methods=["GET"])
+@app.route("/products/", methods=["GET"])
 def get_products():
     products = Product.query.all() # Retrieve all products
     products_data = []
@@ -383,7 +423,7 @@ def get_products():
     return jsonify(products_data) # Return product data
 
 # Add New Product
-@app.route("/products", methods=["POST"])
+@app.route("/products/", methods=["POST"])
 def add_product():
     try: 
         product_data = product_schema.load(request.json) # Load product information
@@ -423,6 +463,14 @@ def delete_product(id):
     db.session.delete(product)
     db.session.commit()
     return jsonify({"message": "Product successfully removed!"}), 200 # Return success
+
+# Get Products By ID
+@app.route("/products/<int:id>", methods=["GET"])
+def get_product_by_id(id):
+    product = db.session.get(Product, id) # Retrieve product from id
+    if product is None:
+        return jsonify({"error":"Product not found"}), 404
+    return product_schema.jsonify(product)
 
 # Get Product by Name
 @app.route("/products/by-name", methods=["GET"])
@@ -478,30 +526,35 @@ def get_orders():
         })
     return jsonify(orders_data)
 
+
 # Add New Order
-@app.route("/orders", methods=["POST"])
+@app.route("/orders/", methods=["POST"])
 def add_order():
     try:
-        order_data = order_schema.load(request.json) # Load order data
+        order_data = order_schema.load(request.json)
         products = []
-        # Iterate through products and append them with quantity
+        
+        # Check for valid product IDs and quantities
         for product_item in order_data["products"]:
-            product = db.session.get(Product, product_item["id"]) # Get the product from the id
+            product = db.session.get(Product, product_item["id"])
             if product is None:
-                return jsonify({"error": "One or more products not found."}), 404 # Handle 404 error
-            # Append the product and quantity to the list
+                return jsonify({"error": "One or more products not found."}), 404
             products.append({
                 "product": product,
                 "quantity": product_item["quantity"]
             })
+        
+        # Check if customer exists
         customer = db.session.get(Customer, order_data["customer_id"])
         if customer is None:
-            return jsonify({"error":"Customer not found."}), 404 # Handle 404 error
-        # Create a new order with date and customer id
+            return jsonify({"error": "Customer not found."}), 404
+        
+        # Create new order
         new_order = Order(date=order_data["date"], customer_id=order_data["customer_id"])
         db.session.add(new_order)
         db.session.commit()
-        # Add products to order_product association table
+        
+        # Add products to the order
         for item in products:
             db.session.execute(order_product.insert().values(
                 order_id=new_order.id,
@@ -509,14 +562,16 @@ def add_order():
                 quantity=item["quantity"]
             ))
         db.session.commit()
-        return jsonify({"message": "New order added successfully"}), 201 # Return success
+        
+        return jsonify({"message": "New order added successfully"}), 201
+
     except ValidationError as ve:
-        return jsonify({"error": ve.messages}), 400  # Handle validation errors
+        return jsonify({"error": ve.messages}), 400
     except IntegrityError:
-        db.session.rollback()  # Rollback in case of integrity issues
-        return jsonify({"error": "Integrity error occurred."}), 400 # Handle integrity errors
+        db.session.rollback()
+        return jsonify({"error": "Integrity error occurred."}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 400 # Handle additional errors
+        return jsonify({"error": str(e)}), 400
 
 # Add Product to an Order
 @app.route("/orders/<int:order_id>/add-product", methods=["PUT"])
@@ -590,6 +645,33 @@ def delete_order(id):
     db.session.commit()  # Commit the changes to the database
     return jsonify({"message": "Order successfully removed!"}), 200 # Return success
 
+# Get Order by Id
+@app.route("/orders/<int:id>", methods=["GET"])
+def get_order_by_id(id):
+    order = db.session.get(Order, id) # Retrieve order from id
+    if order is None:  
+        return jsonify({"error": "Order not found"}), 404 # Handle 404 error
+    
+    order_data = []
+    products_data = []
+    # Query the products for this order along with their quantity
+    order_products = db.session.query(Product, order_product.c.quantity).join(order_product).filter(order_product.c.order_id == order.id).all()
+
+    # Append product details along with the quantity
+    for product, quantity in order_products:
+        products_data.append({
+            "id":product.id,
+            "quantity": quantity
+        })
+    # Add together all order details
+    order_data.append({
+        "id": order.id,
+        "date": order.date,
+        "customer_id": order.customer_id,
+        "products": products_data,
+    })
+    return jsonify(order_data)
+
 # Get Orders By Customer Username
 @app.route("/orders/by-customer", methods=["GET"])
 def get_orders_by_customer():
@@ -597,19 +679,23 @@ def get_orders_by_customer():
     account = CustomerAccount.query.filter_by(username=username).first() # Retrieve account from username
     if account is None:
         return jsonify({"error": "Customer not found."}), 404 # Handle 404 error
+    
     customer = Customer.query.filter_by(account=account).first() # Retrieve customer from account
     if customer is None:
         return jsonify({"error": "Customer not found."}), 404 # Handle 404 error
+    
     orders = Order.query.filter_by(customer_id=customer.id) # Retrieve orders from customer id
     if orders is None:
         return jsonify({"message": "Customer has no orders."}), 200 
     orders_data = []
     for order in orders:
+        order_total = 0
         products_data = []
         # Query the products for this order along with their quantity
         order_products = db.session.query(Product, order_product.c.quantity).join(order_product).filter(order_product.c.order_id == order.id).all()
         # Append product details along with the quantity
         for product, quantity in order_products:
+            order_total = order_total + (quantity*product.price)
             products_data.append({
                 "product_id":product.id,
                 "product_name": product.name,
@@ -623,7 +709,8 @@ def get_orders_by_customer():
             "customer_name": customer.name,
             "email": customer.email,
             "phone": customer.phone,
-            "products": products_data
+            "products": products_data, 
+            "order_total":f"${order_total:.2f}"
         })
     return jsonify(orders_data) # Display all orders with their details
 
